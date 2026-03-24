@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"flag"
 	"log/slog"
 	"os"
@@ -35,23 +34,20 @@ func main() {
 	}
 	tab := browser.Tabs[0]
 
-	tab.AddHandler(cdp.EventNetworkResponseReceived, func(params json.RawMessage) {
-		var ev cdp.NetworkResponseReceivedEvent
-		if err := json.Unmarshal(params, &ev); err == nil {
-			var ret cdp.NetworkGetResponseBodyReturns
-			err := tab.Conn.Send(ctx, cdp.NetworkGetResponseBody(ev.RequestId), tab.SessionID, &ret)
-			if err == nil {
-				var body []byte
-				if ret.Base64Encoded {
-					body, _ = base64.StdEncoding.DecodeString(ret.Body)
-				} else {
-					body = []byte(ret.Body)
-				}
-				if len(body) > 100 {
-					body = body[:100]
-				}
-				slog.Info("Response body", slog.String("url", ev.Response.Url), slog.String("body", string(body)))
+	core.TabOn(tab, func(ev *cdp.NetworkResponseReceivedEvent) {
+		var ret cdp.NetworkGetResponseBodyReturns
+		err := tab.Conn.Send(ctx, cdp.NetworkGetResponseBody(ev.RequestId), tab.SessionID, &ret)
+		if err == nil {
+			var body []byte
+			if ret.Base64Encoded {
+				body, _ = base64.StdEncoding.DecodeString(ret.Body)
+			} else {
+				body = []byte(ret.Body)
 			}
+			if len(body) > 100 {
+				body = body[:100]
+			}
+			slog.Info("Response body", slog.String("url", ev.Response.Url), slog.String("body", string(body)))
 		}
 	})
 

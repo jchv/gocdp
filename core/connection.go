@@ -14,6 +14,34 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// On is a type-safe helper to register a global event handler.
+//
+// Because Go does not allow type parameters on methods, this is a top-level
+// function rather than a method on Connection.
+//
+// Usage:
+//
+//	hid := core.On(conn, func(sessionID string, ev *cdp.PageLoadEventFiredEvent) {
+//	    fmt.Println("page loaded at", ev.Timestamp)
+//	})
+//	defer conn.RemoveHandler(hid)
+func On[E any, PE interface {
+	*E
+	Event
+}](c *Connection, cb func(sessionID string, event PE)) HandlerID {
+	var zero E
+	name := PE(&zero).CDPEventName()
+
+	return c.AddHandler(name, func(sessionID string, params json.RawMessage) {
+		var ev E
+		if err := json.Unmarshal(params, &ev); err != nil {
+			slog.Error("failed to decode CDP event", slog.String("event", name), slog.Any("err", err))
+			return
+		}
+		cb(sessionID, &ev)
+	})
+}
+
 // Command represents a CDP protocol command that can be sent over a connection.
 type Command interface {
 	CDPMethodName() string

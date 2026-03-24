@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"log/slog"
 	"os"
@@ -37,12 +36,7 @@ func main() {
 	}
 
 	for _, tab := range browser.Tabs {
-		tab.AddHandler(cdp.EventFetchRequestPaused, func(params json.RawMessage) {
-			var ev cdp.FetchRequestPausedEvent
-			if err := json.Unmarshal(params, &ev); err != nil {
-				slog.Error("error unmarshaling event", slog.Any("err", err))
-				return
-			}
+		core.TabOn(tab, func(ev *cdp.FetchRequestPausedEvent) {
 			slog.Info("RequestPaused handler", slog.String("url", ev.Request.Url))
 			_ = tab.Conn.Send(ctx, cdp.FetchContinueRequest(ev.RequestId), tab.SessionID, nil)
 		})

@@ -4,11 +4,43 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/jchv/gocdp/cdp"
 )
+
+// TabOn is a type-safe helper to register a Tab-scoped event handler.
+//
+// Because Go does not allow type parameters on methods, this is a top-level
+// function rather than a method on Tab.
+//
+// Usage:
+//
+//	hid := core.TabOn(tab, func(ev *cdp.PageLoadEventFiredEvent) {
+//	    fmt.Println("page loaded at", ev.Timestamp)
+//	})
+//	defer tab.RemoveHandler(hid)
+func TabOn[E any, PE interface {
+	*E
+	Event
+}](t *Tab, cb func(event PE)) HandlerID {
+	var zero E
+	name := PE(&zero).CDPEventName()
+
+	return t.Conn.AddHandler(name, func(sessionID string, params json.RawMessage) {
+		if sessionID != t.SessionID {
+			return
+		}
+		var ev E
+		if err := json.Unmarshal(params, &ev); err != nil {
+			slog.Error("failed to decode CDP event", slog.String("event", name), slog.Any("err", err))
+			return
+		}
+		cb(&ev)
+	})
+}
 
 // Tab represents a single browser tab (page target) attached via a CDP session.
 type Tab struct {
@@ -69,12 +101,10 @@ func (t *Tab) Navigate(ctx context.Context, url string) error {
 	// Register a one-shot handler for Page.loadEventFired *before* we send
 	// the navigate command so we can't miss the event.
 	loadCh := make(chan struct{}, 1)
-	hid := t.Conn.AddHandler(cdp.EventPageLoadEventFired, func(sessionID string, _ json.RawMessage) {
-		if sessionID == t.SessionID {
-			select {
-			case loadCh <- struct{}{}:
-			default:
-			}
+	hid := TabOn[cdp.PageLoadEventFiredEvent](t, func(_ *cdp.PageLoadEventFiredEvent) {
+		select {
+		case loadCh <- struct{}{}:
+		default:
 		}
 	})
 	defer t.Conn.RemoveHandler(hid)
