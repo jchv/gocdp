@@ -2,6 +2,7 @@ package core
 
 import (
 	"flag"
+	"fmt"
 	"os/exec"
 )
 
@@ -9,8 +10,10 @@ import (
 type Config struct {
 	UserDataDir           string
 	Headless              bool
+	BrowserWrapperArgs    []string
 	BrowserExecutablePath string
 	BrowserArgs           []string
+	Env                   []string
 	Sandbox               bool
 	Lang                  string
 	Host                  string
@@ -61,6 +64,14 @@ func WithBrowserExecutableName(name string) Option {
 	})
 }
 
+// WithBrowserWrapperArgs sets a wrapper to run the browser under.
+func WithBrowserWrapperArgs(args []string) Option {
+	return optionFunc(func(c *Config) (err error) {
+		c.BrowserWrapperArgs = args
+		return nil
+	})
+}
+
 // WithBrowserExecutablePath sets an explicit path to the browser binary.
 func WithBrowserExecutablePath(path string) Option {
 	return optionFunc(func(c *Config) error {
@@ -73,6 +84,14 @@ func WithBrowserExecutablePath(path string) Option {
 func WithBrowserArgs(args ...string) Option {
 	return optionFunc(func(c *Config) error {
 		c.BrowserArgs = append(c.BrowserArgs, args...)
+		return nil
+	})
+}
+
+// WithEnv appends environment variables to the browser process.
+func WithEnv(envs []string) Option {
+	return optionFunc(func(c *Config) (err error) {
+		c.Env = append(c.Env, envs...)
 		return nil
 	})
 }
@@ -126,7 +145,9 @@ func WithFlags(fs *flag.FlagSet) Option {
 	config.SetDefaults()
 	fs.StringVar(&config.UserDataDir, "user-data-dir", config.UserDataDir, "User data directory")
 	fs.BoolVar(&config.Headless, "headless", config.Headless, "Start in headless mode")
+	fs.Var(newStringSlice(&config.BrowserWrapperArgs), "browser-wrapper-args", "Wrapper to run browser under")
 	fs.StringVar(&config.BrowserExecutablePath, "browser-executable-path", config.BrowserExecutablePath, "Path to browser executable")
+	fs.Var(newStringSlice(&config.Env), "env", "Variables for browser environment")
 	fs.BoolVar(&config.Sandbox, "sandbox", config.Sandbox, "Enable sandbox mode")
 	fs.StringVar(&config.Lang, "lang", config.Lang, "Language string to use")
 	fs.StringVar(&config.Host, "host", config.Host, "Remote debugging host")
@@ -156,4 +177,19 @@ func WithFlags(fs *flag.FlagSet) Option {
 		})
 		return nil
 	})
+}
+
+type stringSlice []string
+
+func newStringSlice(s *[]string) *stringSlice {
+	return (*stringSlice)(s)
+}
+
+func (s *stringSlice) String() string {
+	return fmt.Sprintf("%v", *s)
+}
+
+func (s *stringSlice) Set(value string) error {
+	*s = append(*s, value)
+	return nil
 }

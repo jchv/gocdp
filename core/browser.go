@@ -157,11 +157,23 @@ func Start(ctx context.Context, opts ...Option) (*Browser, error) {
 			args = append(args, config.BrowserArgs...)
 		}
 
-		cmd = exec.CommandContext(ctx, execPath, args...)
+		if len(config.BrowserWrapperArgs) > 0 {
+			wrapperArgs := []string{}
+			wrapperArgs = append(wrapperArgs, config.BrowserWrapperArgs[1:]...)
+			wrapperArgs = append(wrapperArgs, execPath)
+			wrapperArgs = append(wrapperArgs, args...)
+			cmd = exec.CommandContext(ctx, config.BrowserWrapperArgs[0], wrapperArgs...)
+		} else {
+			cmd = exec.CommandContext(ctx, execPath, args...)
+		}
 
 		stderr, err := cmd.StderrPipe()
 		if err != nil {
 			return nil, err
+		}
+
+		if config.Env != nil {
+			cmd.Env = config.Env
 		}
 
 		if err := cmd.Start(); err != nil {
