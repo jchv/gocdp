@@ -16,7 +16,7 @@ func main() {
 		slog.Error("Error creating SSL key log file", slog.Any("err", err))
 		os.Exit(1)
 	}
-	sslKeyLogFile.Close()
+	_ = sslKeyLogFile.Close()
 
 	slog.Info("Created SSL key log file", slog.String("name", sslKeyLogFile.Name()))
 
